@@ -6,14 +6,12 @@
 #include "FIRF.h"
 
 static AudioSample_t FIRF_filter(FIRF_t * filter, AudioSample_t inputSample){
-    uint32_t currSampleIndex = filter->currFilterStartIndex;
-    
     int32_t accumulator = 0;
     filter->samples[filter->currFilterStartIndex] = inputSample;
     
-    int32_t * sample = &filter->samples[filter->currFilterStartIndex];
-    int32_t * coefficient = &filter->coefficients[filter->currFilterStartIndex];
-    int32_t * INVALID_firstInvalidPointer = &filter->samples[filter->filterLength];
+    int32_t * sample = &(filter->samples[filter->currFilterStartIndex]);
+    int32_t * coefficient = filter->coefficients;
+    int32_t * INVALID_firstInvalidPointer = &(filter->samples[filter->filterLength]);
     int32_t * INVALID_endPointer = sample; //end once we have reached the start again
     
     do{
@@ -21,7 +19,9 @@ static AudioSample_t FIRF_filter(FIRF_t * filter, AudioSample_t inputSample){
         if(sample == INVALID_firstInvalidPointer) sample = filter->samples;
     }while(sample != INVALID_endPointer);
     
-    return accumulator >> 16;
+    if(++filter->currFilterStartIndex >= filter->filterLength) filter->currFilterStartIndex = 0;
+    
+    return accumulator;
 }
 
 static void FIRF_task(void * taskData){
@@ -51,6 +51,8 @@ FIRF_t * FIRF_create(uint32_t filterLength){
     ret->active = 1;
     ret->currFilterStartIndex = 0;
     ret->filterLength = filterLength;
+    
+    ret->coefficients[0] = 0xffff;
     
     xTaskCreate(FIRF_task, "Audio Task", configMINIMAL_STACK_SIZE, (void*) ret, tskIDLE_PRIORITY + 1, NULL);
     
